@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String            @id @default(cuid())
+  email         String            @unique
+  passwordHash  String
+  displayName   String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  sessions      Session[]
+  documents     DocumentMeta[]
+  progresses    ReadingProgress[]
+  importBatches ImportBatch[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model DocumentMeta {
+  id            String           @id @default(cuid())
+  ownerId       String
+  title         String
+  sourceType    String
+  status        String           @default("QUEUED")
+  parserVersion String           @default("1.0.0")
+  objectKey     String
+  wordCount     Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  owner         User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  blocks        DocumentBlock[]
+  assets        DocumentAsset[]
+  progresses    ReadingProgress[]
+  jobs          IngestJob[]
+  importItems   ImportItem[]
+
+  @@index([ownerId, createdAt])
+  @@index([status])
+}
+
+model DocumentBlock {
+  id         String       @id @default(cuid())
+  documentId String
+  index      Int
+  type       String
+  text       String?
+  level      Int?
+  attrs      Json?
+  createdAt  DateTime     @default(now())
+  document   DocumentMeta @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, index])
+  @@index([documentId, type])
+}
+
+model DocumentAsset {
+  id         String       @id @default(cuid())
+  documentId String
+  blockIndex Int
+  kind       String
+  storageKey String
+  mimeType   String
+  width      Int?
+  height     Int?
+  createdAt  DateTime     @default(now())
+  document   DocumentMeta @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, blockIndex])
+}
+
+model ReadingProgress {
+  id             String       @id @default(cuid())
+  userId         String
+  documentId     String
+  lastBlockIndex Int          @default(0)
+  lastOffset     Int          @default(0)
+  percent        Float        @default(0)
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document       DocumentMeta @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentId])
+  @@index([documentId])
+}
+
+model IngestJob {
+  id         String       @id @default(cuid())
+  documentId String
+  status     String       @default("QUEUED")
+  errorCode  String?
+  errorText  String?
+  retryCount Int          @default(0)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  document   DocumentMeta @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  importItems ImportItem[]
+
+  @@index([documentId, createdAt])
+}
+
+model ImportBatch {
+  id          String       @id @default(cuid())
+  ownerId     String
+  kind        String
+  archiveFormat String?
+  objectKey   String
+  status      String       @default("QUEUED")
+  totalCount  Int          @default(0)
+  successCount Int         @default(0)
+  failedCount Int          @default(0)
+  skippedCount Int         @default(0)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items       ImportItem[]
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ImportItem {
+  id          String       @id @default(cuid())
+  batchId     String
+  relativePath String
+  sourceType  String?
+  status      String       @default("QUEUED")
+  errorCode   String?
+  errorText   String?
+  documentId  String?
+  ingestJobId String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  batch       ImportBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  document    DocumentMeta? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  ingestJob   IngestJob?   @relation(fields: [ingestJobId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, relativePath])
+  @@index([batchId, status])
+}
