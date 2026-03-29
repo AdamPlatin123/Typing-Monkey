@@ -1,5 +1,12 @@
 ﻿import { NextResponse } from "next/server";
 
+export class UnauthorizedError extends Error {
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -48,6 +55,18 @@ export function toErrorResponse(error: unknown) {
         },
       },
       { status: error.status },
+    );
+  }
+
+  if (error instanceof UnauthorizedError) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "UNAUTHORIZED",
+          message: error.message,
+        },
+      },
+      { status: 401 },
     );
   }
 

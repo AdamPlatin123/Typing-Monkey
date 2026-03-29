@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 
 import { prisma } from "@/lib/db";
+import { UnauthorizedError } from "@/lib/http/errors";
 
 export const SESSION_COOKIE_NAME = "typingmonkey_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
@@ -68,7 +69,7 @@ export async function getCurrentUser() {
 export async function requireCurrentUser() {
   const user = await getCurrentUser();
   if (!user) {
-    throw new Error("UNAUTHORIZED");
+    throw new UnauthorizedError();
   }
 
   return user;
