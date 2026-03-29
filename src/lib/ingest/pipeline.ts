@@ -10,7 +10,7 @@ import {
   type DocumentSourceType,
 } from "@/lib/domain";
 import { prisma } from "@/lib/db";
-import { sanitizeRelativePath, sourceTypeFromFileName } from "@/lib/file";
+import { sanitizeRelativePath, sourceTypeFromFileName, getImageMimeType, getImageExtension } from "@/lib/file";
 import { extractArchiveFromBuffer } from "@/lib/ingest/archive";
 import { parseDocument } from "@/lib/parsers";
 import {
@@ -22,27 +22,6 @@ import { getObjectCommand, putObjectCommand, s3Client } from "@/lib/storage";
 import { streamToBuffer } from "@/lib/streams";
 
 const PARSER_VERSION = "2.0.0";
-
-function pickAssetExtension(mimeType: string) {
-  if (mimeType === "image/png") return "png";
-  if (mimeType === "image/jpeg") return "jpg";
-  if (mimeType === "image/gif") return "gif";
-  if (mimeType === "image/webp") return "webp";
-  if (mimeType === "image/bmp") return "bmp";
-  if (mimeType === "image/svg+xml") return "svg";
-  return "bin";
-}
-
-function inferAssetMimeTypeFromName(fileName: string) {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".gif")) return "image/gif";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".bmp")) return "image/bmp";
-  if (lower.endsWith(".svg")) return "image/svg+xml";
-  return "application/octet-stream";
-}
 
 async function parseAndPersistDocument(params: {
   documentId: string;
@@ -82,7 +61,7 @@ async function parseAndPersistDocument(params: {
     if (parseResult.assets.length > 0) {
       for (let idx = 0; idx < parseResult.assets.length; idx += 1) {
         const asset = parseResult.assets[idx];
-        const ext = pickAssetExtension(asset.mimeType);
+        const ext = getImageExtension(asset.mimeType);
         const assetKey = `documents/${params.ownerId}/${params.documentId}/assets/${idx + 1}.${ext}`;
 
         await s3Client.send(
@@ -228,7 +207,7 @@ function buildMarkdownResolver(args: {
 
     return {
       fileName: path.posix.basename(relativeTarget),
-      mimeType: inferAssetMimeTypeFromName(relativeTarget),
+      mimeType: getImageMimeType(relativeTarget) ?? "application/octet-stream",
       data,
     };
   };

@@ -2,22 +2,9 @@
 import mammoth from "mammoth";
 
 import { BLOCK_TYPE } from "@/lib/domain";
+import { getImageMimeType } from "@/lib/file";
+import { computeParseMeta } from "@/lib/parsers/index";
 import { ParseResult } from "@/lib/parsers/types";
-
-const DOCX_IMAGE_MIME: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".bmp": "image/bmp",
-};
-
-function getMimeType(name: string) {
-  const lower = name.toLowerCase();
-  const ext = Object.keys(DOCX_IMAGE_MIME).find((candidate) => lower.endsWith(candidate));
-  return ext ? DOCX_IMAGE_MIME[ext] : "application/octet-stream";
-}
 
 export async function parseDocx(buffer: Buffer): Promise<ParseResult> {
   const extracted = await mammoth.extractRawText({ buffer });
@@ -68,7 +55,7 @@ export async function parseDocx(buffer: Buffer): Promise<ParseResult> {
         blockIndex,
         kind: "IMAGE",
         fileName: visibleName,
-        mimeType: getMimeType(visibleName),
+        mimeType: getImageMimeType(visibleName) ?? "application/octet-stream",
         data: bytes,
       });
     }
@@ -77,11 +64,11 @@ export async function parseDocx(buffer: Buffer): Promise<ParseResult> {
     console.error("Docx image extraction failed", error);
   }
 
-  const allText = blocks
+  const textBlocks = blocks
     .filter((block) => block.type !== BLOCK_TYPE.IMAGE)
-    .map((block) => block.text ?? "")
-    .join(" ")
-    .trim();
+    .map((block) => block.text ?? "");
+
+  const meta = computeParseMeta(textBlocks, blocks.length);
 
   return {
     blocks,
@@ -89,8 +76,8 @@ export async function parseDocx(buffer: Buffer): Promise<ParseResult> {
     warnings,
     meta: {
       title: blocks.find((block) => block.type === BLOCK_TYPE.HEADING)?.text,
-      hasText: allText.length > 0,
-      wordCount: allText.length ? allText.split(/\s+/).length : 0,
+      hasText: meta.hasText,
+      wordCount: meta.wordCount,
     },
   };
 }

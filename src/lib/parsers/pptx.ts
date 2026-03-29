@@ -3,6 +3,8 @@ import path from "node:path";
 import JSZip from "jszip";
 
 import { BLOCK_TYPE } from "@/lib/domain";
+import { getImageMimeType } from "@/lib/file";
+import { computeParseMeta } from "@/lib/parsers/index";
 import { type ParseResult } from "@/lib/parsers/types";
 
 function decodeXmlText(input: string) {
@@ -13,17 +15,6 @@ function decodeXmlText(input: string) {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#xA;/gi, "\n");
-}
-
-function getImageMime(fileName: string) {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".gif")) return "image/gif";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".bmp")) return "image/bmp";
-  if (lower.endsWith(".svg")) return "image/svg+xml";
-  return "application/octet-stream";
 }
 
 function sortSlideFiles(files: string[]) {
@@ -187,17 +178,17 @@ export async function parsePptx(buffer: Buffer): Promise<ParseResult> {
         blockIndex,
         kind: "IMAGE",
         fileName,
-        mimeType: getImageMime(fileName),
+        mimeType: getImageMimeType(fileName) ?? "application/octet-stream",
         data: mediaData,
       });
     }
   }
 
-  const mergedText = blocks
+  const textBlocks = blocks
     .filter((block) => block.type !== BLOCK_TYPE.IMAGE)
-    .map((block) => block.text ?? "")
-    .join(" ")
-    .trim();
+    .map((block) => block.text ?? "");
+
+  const meta = computeParseMeta(textBlocks, blocks.length);
 
   const titleBlock = blocks.find((block) => block.type === BLOCK_TYPE.HEADING && typeof block.text === "string");
 
@@ -207,8 +198,8 @@ export async function parsePptx(buffer: Buffer): Promise<ParseResult> {
     warnings,
     meta: {
       title: titleBlock?.text,
-      hasText: mergedText.length > 0,
-      wordCount: mergedText ? mergedText.split(/\s+/).length : 0,
+      hasText: meta.hasText,
+      wordCount: meta.wordCount,
     },
   };
 }

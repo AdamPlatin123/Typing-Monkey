@@ -91,3 +91,39 @@ export function sanitizeRelativePath(input: string) {
 
   return out.join("/");
 }
+
+const IMAGE_EXTENSION_TO_MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".tiff": "image/tiff",
+  ".tif": "image/tiff",
+  ".emf": "image/x-emf",
+  ".wmf": "image/x-wmf",
+};
+
+const MIME_TO_IMAGE_EXTENSION: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/bmp": "bmp",
+  "image/svg+xml": "svg",
+  "image/webp": "webp",
+  "image/tiff": "tiff",
+  "image/x-emf": "emf",
+  "image/x-wmf": "wmf",
+};
+
+export function getImageMimeType(fileName: string): string | undefined {
+  const lower = fileName.toLowerCase();
+  const ext = Object.keys(IMAGE_EXTENSION_TO_MIME).find((candidate) => lower.endsWith(candidate));
+  return ext ? IMAGE_EXTENSION_TO_MIME[ext] : undefined;
+}
+
+export function getImageExtension(mimeType: string): string {
+  return MIME_TO_IMAGE_EXTENSION[mimeType] ?? "bin";
+}
