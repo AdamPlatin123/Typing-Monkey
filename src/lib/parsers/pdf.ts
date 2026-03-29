@@ -1,4 +1,5 @@
 import { BLOCK_TYPE } from "@/lib/domain";
+import { computeParseMeta } from "@/lib/parsers/index";
 import { type ParseResult, ParserError } from "@/lib/parsers/types";
 
 type PdfJsModule = {
@@ -198,10 +199,11 @@ export async function parsePdf(buffer: Buffer): Promise<ParseResult> {
       warnings.push("PDF_IMAGE_EXTRACTION_EMPTY");
     }
 
-    const allText = blocks
+    const textBlocks = blocks
       .filter((block) => block.type !== BLOCK_TYPE.IMAGE)
-      .map((block) => block.text ?? "")
-      .join(" ");
+      .map((block) => block.text ?? "");
+
+    const meta = computeParseMeta(textBlocks, blocks.length);
 
     return {
       blocks,
@@ -209,8 +211,8 @@ export async function parsePdf(buffer: Buffer): Promise<ParseResult> {
       warnings,
       meta: {
         title: undefined,
-        hasText: allText.trim().length > 0,
-        wordCount: allText.trim().length > 0 ? allText.trim().split(/\s+/).length : 0,
+        hasText: meta.hasText,
+        wordCount: meta.wordCount,
       },
     };
   } catch (error) {

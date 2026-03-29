@@ -1,5 +1,6 @@
 ﻿import { BLOCK_TYPE } from "@/lib/domain";
 
+import { computeParseMeta } from "@/lib/parsers/index";
 import { ParseResult } from "@/lib/parsers/types";
 
 export async function parsePlainText(buffer: Buffer): Promise<ParseResult> {
@@ -19,16 +20,17 @@ export async function parsePlainText(buffer: Buffer): Promise<ParseResult> {
     });
   }
 
-  const text = blocks.map((block) => block.text ?? "").join(" ");
+  const texts = blocks.map((block) => block.text ?? "");
+  const meta = computeParseMeta(texts, blocks.length);
 
   return {
     blocks,
     assets: [],
     warnings: [],
     meta: {
-      hasText: text.length > 0,
+      hasText: meta.hasText,
       title: blocks[0]?.text?.slice(0, 60),
-      wordCount: text ? text.split(/\s+/).length : 0,
+      wordCount: meta.wordCount,
     },
   };
 }

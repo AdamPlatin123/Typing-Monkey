@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 
 import { BLOCK_TYPE } from "@/lib/domain";
+import { computeParseMeta } from "@/lib/parsers/index";
 import { type ParseContext, type ParseResult } from "@/lib/parsers/types";
 
 type MdNode = {
@@ -193,8 +194,9 @@ export async function parseMarkdown(
 
   const textBlocks = blocks
     .filter((block) => block.type !== BLOCK_TYPE.IMAGE && block.text)
-    .map((block) => block.text ?? "")
-    .join(" ");
+    .map((block) => block.text ?? "");
+
+  const meta = computeParseMeta(textBlocks, blocks.length);
 
   return {
     blocks,
@@ -202,8 +204,8 @@ export async function parseMarkdown(
     warnings,
     meta: {
       title,
-      hasText: textBlocks.trim().length > 0,
-      wordCount: textBlocks.trim() ? textBlocks.trim().split(/\s+/).length : 0,
+      hasText: meta.hasText,
+      wordCount: meta.wordCount,
     },
   };
 }

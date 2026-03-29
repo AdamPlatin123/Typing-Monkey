@@ -1,4 +1,4 @@
-import { DOCUMENT_SOURCE, type DocumentSourceType } from "@/lib/domain";
+import { BLOCK_TYPE, DOCUMENT_SOURCE, type DocumentSourceType } from "@/lib/domain";
 
 import { parseDocx } from "@/lib/parsers/docx";
 import { parseMarkdown } from "@/lib/parsers/markdown";
@@ -7,6 +7,22 @@ import { parsePlainText } from "@/lib/parsers/text";
 import { parsePpt } from "@/lib/parsers/ppt";
 import { parsePptx } from "@/lib/parsers/pptx";
 import { type ParseContext, type ParseResult } from "@/lib/parsers/types";
+
+/**
+ * Compute unified parse metadata from an array of text strings and block count.
+ * Normalises word-count calculation (split by whitespace, filter empty strings)
+ * across all parsers.
+ */
+export function computeParseMeta(texts: string[], blockCount: number) {
+  const merged = texts.join(" ").trim();
+  const words = merged ? merged.split(/\s+/) : [];
+  return {
+    wordCount: words.length,
+    charCount: merged.length,
+    blockCount,
+    hasText: merged.length > 0,
+  };
+}
 
 export async function parseDocument(params: {
   sourceType: DocumentSourceType;
