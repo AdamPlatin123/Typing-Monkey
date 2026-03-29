@@ -1,38 +1,11 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 
 import { env } from "@/lib/env";
+import { runProcess } from "@/lib/process";
 import { parsePptx } from "@/lib/parsers/pptx";
 import { type ParseResult, ParserError } from "@/lib/parsers/types";
-
-function runProcess(command: string, args: string[], cwd?: string) {
-  return new Promise<void>((resolve, reject) => {
-    const proc = spawn(command, args, {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-
-    let stderr = "";
-    proc.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    proc.on("error", (error) => {
-      reject(error);
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(stderr || `Process exited with code ${code}`));
-      }
-    });
-  });
-}
 
 async function convertPptToPptxBuffer(buffer: Buffer): Promise<Buffer> {
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "typingmonkey-ppt-"));

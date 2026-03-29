@@ -1,43 +1,19 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { spawn } from "node:child_process";
 
 import JSZip from "jszip";
 
 import { ARCHIVE_FORMAT, type ArchiveFormat } from "@/lib/domain";
 import { env } from "@/lib/env";
 import { detectArchiveFormat, sanitizeRelativePath } from "@/lib/file";
+import { runProcess } from "@/lib/process";
 import { ParserError } from "@/lib/parsers/types";
 
 type ExtractedFile = {
   relativePath: string;
   buffer: Buffer;
 };
-
-async function runProcess(command: string, args: string[], cwd?: string) {
-  return new Promise<void>((resolve, reject) => {
-    const proc = spawn(command, args, {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-
-    let stderr = "";
-    proc.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    proc.on("error", (error) => reject(error));
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(stderr || `Process exited with code ${code}`));
-      }
-    });
-  });
-}
 
 async function collectFilesFromDirectory(root: string): Promise<ExtractedFile[]> {
   const output: ExtractedFile[] = [];
