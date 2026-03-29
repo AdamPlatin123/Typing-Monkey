@@ -22,31 +22,59 @@
 <img src="https://img.shields.io/badge/Redis-BullMQ-DC382D?logo=redis" alt="Redis" />
 <img src="https://img.shields.io/badge/S3-Compatible-569A31?logo=amazon-s3" alt="S3" />
 
-> A local-first document import, parse & reading tool.
+> ```json
+> { "is_typing": true, "is_happy": true }
+> ```
 >
-> 本地优先的文档导入、解析与阅读工具。
+> **Infinite monkey theorem, but no waiting.**
+> Smash your keyboard. Out comes a real document. That's it. That's the app.
+>
+> 无限猴子定理，但不用等。乱敲键盘，出来的是一篇真文档。就这么简单。
 
 </div>
 
-## What It Does
+## The Vibe
+
+Don't read. **Type.**
+
+Your fingers go brrrr on the keyboard — `asdfjkl;` — and somehow a research paper appears on screen. You didn't write it. But it looks like you did.
+
+That's the whole trick. Import a document, then type through it. Every keystroke reveals the next chunk. You feel like a genius. The monkey feels like a genius. Everyone wins.
+
+```console
+$ typingmonkey open research.pdf
+
+  your fingers ══> asdfghjkl qwertyuiop
+  on screen   ══> Introduction to Quantum Computing
+                   The field of quantum computing has...
+
+  your fingers ══> zxcvbnm poiuytrewq lol
+  on screen   ══> Chapter 2 · Fundamentals
+                   A qubit, unlike a classical bit...
+
+  your fingers ══> pewpewpew fjdkslagh
+  on screen   ══> Chapter 3 · Architecture
+                   Quantum circuits are composed of...
+```
+
+The monkey types. The monkey is happy. The monkey wrote a paper. <sub>infinite typing moment</sub>
+
+<!-- TODO: Record typing-demo.gif and uncomment below -->
+<p align="center">
+  <img src="docs/assets/typing-demo.gif" width="600" alt="Typing demo" />
+</p>
+
+### Feed the Monkey
+
+Drop in your files first, then go wild:
 
 ```console
 $ typingmonkey import research.pdf
-  Parsing... done.
-  Sections: 5  |  Blocks: 142  |  Resources: 8
+  nom nom · 142 blocks · 12,847 words · 8 images
 
 $ typingmonkey import ./papers/ --batch
-  Scanning 23 files... done.
-  Queued: 15  |  Skipped (unsupported): 6  |  Failed: 2
-
-$ typingmonkey open --section 3
-  Resuming from block 89/132 (progress 67%)
+  nom nom · 15 queued · 14 ok · 1 skipped (no text layer)
 ```
-
-<!-- TODO: Record import-demo.gif and uncomment below -->
-<p align="center">
-  <img src="docs/assets/import-demo.gif" width="600" alt="Import demo" />
-</p>
 
 ### Supported Formats
 
@@ -128,18 +156,38 @@ start-typingmonkey.bat --migrate
 <details>
 <summary><strong>中文文档</strong></summary>
 
-## 功能介绍
+## 调性
 
-TypingMonkey 是一个本地优先的文档导入、解析与阅读工具。它将多种格式的文档统一转换为结构化数据，并提供阅读进度保存、文档搜索和结构化阅读能力。
+别读。**打字。**
+
+手指在键盘上乱飞——`asdfjkl;`——屏幕上居然出现了一篇论文。你没写过。但看起来就像你写的。
+
+就这么回事。导入文档，然后一路敲下去。每按一个键，就多显示一点内容。你觉得自己是天才。猴子也觉得自己是天才。双赢。
+
+```console
+$ typingmonkey open research.pdf
+
+  你的手指 ══> asdfghjkl qwertyuiop
+  屏幕显示 ══> 量子计算导论
+               量子计算领域近年来...
+
+  你的手指 ══> zxcvbnm 随便打打 poiuy
+  屏幕显示 ══> 第二章 · 基础概念
+               与经典比特不同，量子比特...
+
+  你的手指 ══> biubiubiu fjdkslagh
+  屏幕显示 ══> 第三章 · 架构
+               量子电路由一系列量子门组成...
+```
+
+猴子在打字。猴子很开心。猴子写出了一篇论文。 <sub>无限打字时刻</sub>
 
 **核心功能：**
 
-- 单机免登录模式，自动创建本地用户
-- 单文件导入：支持 `md`、`txt`、`pdf`、`docx`、`pptx`、`ppt`
-- 批量导入：支持文件夹、`zip`、`7z`、`rar`
-- 统一落库为结构化文档块与资源文件
-- Markdown 相对路径图片解析
-- 阅读进度保存、文档搜索和结构化阅读
+- 乱敲键盘 → 输出真实文档内容
+- 单文件导入：`md` `txt` `pdf` `docx` `pptx` `ppt`
+- 批量导入：文件夹、`zip` `7z` `rar`
+- 阅读进度保存、文档搜索、结构化阅读
 
 **支持格式：**
 
