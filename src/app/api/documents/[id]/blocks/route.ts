@@ -1,8 +1,8 @@
 ﻿import { NextResponse } from "next/server";
 
-import { resolveActiveUser } from "@/lib/auth/active-user";
+import { requireDocumentExists } from "@/lib/auth/access";
 import { prisma } from "@/lib/db";
-import { notFound, toErrorResponse } from "@/lib/http/errors";
+import { toErrorResponse } from "@/lib/http/errors";
 import { getSignedDownloadUrl } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -11,29 +11,16 @@ const DEFAULT_LIMIT = 120;
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await resolveActiveUser();
     const { id } = await context.params;
     const url = new URL(request.url);
+
+    await requireDocumentExists(id);
 
     const cursorParam = url.searchParams.get("cursor");
     const limitParam = Number(url.searchParams.get("limit") ?? DEFAULT_LIMIT);
 
     const limit = Number.isNaN(limitParam) ? DEFAULT_LIMIT : Math.max(1, Math.min(limitParam, 300));
     const cursor = cursorParam ? Number(cursorParam) : null;
-
-    const document = await prisma.documentMeta.findFirst({
-      where: {
-        id,
-        ownerId: user.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!document) {
-      throw notFound("Document not found");
-    }
 
     const blocks = await prisma.documentBlock.findMany({
       where: {

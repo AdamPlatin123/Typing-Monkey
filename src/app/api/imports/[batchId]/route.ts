@@ -1,42 +1,31 @@
 import { NextResponse } from "next/server";
 
-import { resolveActiveUser } from "@/lib/auth/active-user";
-import { prisma } from "@/lib/db";
-import { notFound, toErrorResponse } from "@/lib/http/errors";
+import { requireBatchAccess } from "@/lib/auth/access";
+import { toErrorResponse } from "@/lib/http/errors";
 
 export const runtime = "nodejs";
 
 export async function GET(_request: Request, context: { params: Promise<{ batchId: string }> }) {
   try {
-    const user = await resolveActiveUser();
     const { batchId } = await context.params;
+    const { batch } = await requireBatchAccess(batchId);
 
-    const batch = await prisma.importBatch.findFirst({
-      where: {
-        id: batchId,
-        ownerId: user.id,
-      },
-      select: {
-        id: true,
-        kind: true,
-        archiveFormat: true,
-        status: true,
-        totalCount: true,
-        successCount: true,
-        failedCount: true,
-        skippedCount: true,
-        startedAt: true,
-        finishedAt: true,
-        createdAt: true,
-        updatedAt: true,
+    return NextResponse.json({
+      data: {
+        id: batch.id,
+        kind: batch.kind,
+        archiveFormat: batch.archiveFormat,
+        status: batch.status,
+        totalCount: batch.totalCount,
+        successCount: batch.successCount,
+        failedCount: batch.failedCount,
+        skippedCount: batch.skippedCount,
+        startedAt: batch.startedAt,
+        finishedAt: batch.finishedAt,
+        createdAt: batch.createdAt,
+        updatedAt: batch.updatedAt,
       },
     });
-
-    if (!batch) {
-      throw notFound("Import batch not found");
-    }
-
-    return NextResponse.json({ data: batch });
   } catch (error) {
     return toErrorResponse(error);
   }

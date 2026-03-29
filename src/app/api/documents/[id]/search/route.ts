@@ -1,8 +1,8 @@
 ﻿import { NextResponse } from "next/server";
 
-import { resolveActiveUser } from "@/lib/auth/active-user";
+import { requireDocumentExists } from "@/lib/auth/access";
 import { prisma } from "@/lib/db";
-import { badRequest, notFound, toErrorResponse } from "@/lib/http/errors";
+import { badRequest, toErrorResponse } from "@/lib/http/errors";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,6 @@ function snippet(text: string, query: string) {
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await resolveActiveUser();
     const { id } = await context.params;
     const url = new URL(request.url);
 
@@ -34,17 +33,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const limitParam = Number(url.searchParams.get("limit") ?? DEFAULT_LIMIT);
     const limit = Number.isNaN(limitParam) ? DEFAULT_LIMIT : Math.max(1, Math.min(limitParam, 100));
 
-    const exists = await prisma.documentMeta.findFirst({
-      where: {
-        id,
-        ownerId: user.id,
-      },
-      select: { id: true },
-    });
-
-    if (!exists) {
-      throw notFound("Document not found");
-    }
+    await requireDocumentExists(id);
 
     const matches = await prisma.documentBlock.findMany({
       where: {

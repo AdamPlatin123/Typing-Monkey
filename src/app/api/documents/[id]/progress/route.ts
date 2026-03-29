@@ -1,33 +1,17 @@
 ﻿import { NextResponse } from "next/server";
 
-import { resolveActiveUser } from "@/lib/auth/active-user";
+import { requireDocumentExists } from "@/lib/auth/access";
 import { prisma } from "@/lib/db";
-import { notFound, toErrorResponse } from "@/lib/http/errors";
+import { toErrorResponse } from "@/lib/http/errors";
 import { parseJsonBody } from "@/lib/http/json";
 import { progressSchema } from "@/lib/types/api";
 
 export const runtime = "nodejs";
 
-async function ensureDocumentAccess(documentId: string, userId: string) {
-  const document = await prisma.documentMeta.findFirst({
-    where: {
-      id: documentId,
-      ownerId: userId,
-    },
-    select: { id: true },
-  });
-
-  if (!document) {
-    throw notFound("Document not found");
-  }
-}
-
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await resolveActiveUser();
     const { id } = await context.params;
-
-    await ensureDocumentAccess(id, user.id);
+    const { user } = await requireDocumentExists(id);
 
     const progress = await prisma.readingProgress.findUnique({
       where: {
@@ -59,10 +43,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await resolveActiveUser();
     const { id } = await context.params;
-
-    await ensureDocumentAccess(id, user.id);
+    const { user } = await requireDocumentExists(id);
 
     const input = await parseJsonBody(request, progressSchema);
 

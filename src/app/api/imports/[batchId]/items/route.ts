@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { resolveActiveUser } from "@/lib/auth/active-user";
+import { requireBatchExists } from "@/lib/auth/access";
 import { prisma } from "@/lib/db";
-import { notFound, toErrorResponse } from "@/lib/http/errors";
+import { toErrorResponse } from "@/lib/http/errors";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,6 @@ const DEFAULT_LIMIT = 50;
 
 export async function GET(request: Request, context: { params: Promise<{ batchId: string }> }) {
   try {
-    const user = await resolveActiveUser();
     const { batchId } = await context.params;
     const url = new URL(request.url);
 
@@ -18,19 +17,7 @@ export async function GET(request: Request, context: { params: Promise<{ batchId
     const requestedTake = Number(url.searchParams.get("take") ?? DEFAULT_LIMIT);
     const take = Number.isNaN(requestedTake) ? DEFAULT_LIMIT : Math.max(1, Math.min(requestedTake, 200));
 
-    const batch = await prisma.importBatch.findFirst({
-      where: {
-        id: batchId,
-        ownerId: user.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!batch) {
-      throw notFound("Import batch not found");
-    }
+    await requireBatchExists(batchId);
 
     const items = await prisma.importItem.findMany({
       where: {
