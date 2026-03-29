@@ -51,3 +51,4 @@ prisma/*.db-shm
 # local editors
 .vscode/
 .idea/
+.gstack/
