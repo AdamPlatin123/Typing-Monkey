@@ -14,52 +14,15 @@ import {
   X,
 } from "lucide-react";
 
-type SourceType = "PDF" | "DOCX" | "PPTX" | "PPT" | "MD" | "TXT";
-type DocumentStatus = "QUEUED" | "PROCESSING" | "READY" | "FAILED";
-type BlockType = "HEADING" | "PARAGRAPH" | "LIST_ITEM" | "CODE" | "QUOTE" | "IMAGE" | "HR";
-
-type DocumentItem = {
-  id: string;
-  title: string;
-  sourceType: SourceType;
-  status: DocumentStatus;
-  parserVersion: string;
-  wordCount: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type BlockItem = {
-  id: string;
-  index: number;
-  type: BlockType;
-  text: string | null;
-  level: number | null;
-  attrs: Record<string, unknown> | null;
-  image: {
-    id: string;
-    url: string;
-    mimeType: string;
-    width: number | null;
-    height: number | null;
-  } | null;
-};
-
-type ImportBatchInfo = {
-  id: string;
-  status: "QUEUED" | "PROCESSING" | "PARTIAL_SUCCESS" | "COMPLETED" | "FAILED";
-  totalCount: number;
-  successCount: number;
-  failedCount: number;
-  skippedCount: number;
-};
-
-type ImportMode = "single" | "folder" | "archive";
-
-type BlocksResponse = {
-  data: BlockItem[];
-  nextCursor: number | null;
-};
+import type {
+  ApiImportMode,
+  Block,
+  BlocksResponse,
+  DocumentItem,
+  ImportBatch,
+} from "@/lib/types/api";
+import { fetchJson } from "@/lib/api-client";
+import { BlockRenderer } from "@/components/block-renderer";
 
 const folderPickerProps = {
   webkitdirectory: "",
@@ -70,102 +33,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = (payload as { error?: { message?: string } })?.error?.message ?? `Request failed: ${response.status}`;
-    throw new Error(message);
-  }
-
-  return payload as T;
-}
-
-function renderBlock(block: BlockItem) {
-  const key = `${block.id}-${block.index}`;
-  const pageOrSlide = (block.attrs?.slide ?? block.attrs?.page) as number | undefined;
-
-  if (block.type === "HEADING") {
-    const level = block.level ?? 2;
-    if (level <= 1) return <h1 key={key} className="text-3xl font-semibold mt-6 mb-3">{block.text}</h1>;
-    if (level === 2) return <h2 key={key} className="text-2xl font-semibold mt-5 mb-3">{block.text}</h2>;
-    return <h3 key={key} className="text-xl font-semibold mt-4 mb-2">{block.text}</h3>;
-  }
-
-  if (block.type === "LIST_ITEM") {
-    return (
-      <div key={key} className="flex gap-2 my-1">
-        <span>*</span>
-        <p className="whitespace-pre-wrap">{block.text}</p>
-      </div>
-    );
-  }
-
-  if (block.type === "CODE") {
-    return (
-      <pre key={key} className="my-3 rounded-lg bg-slate-950 border border-slate-700 p-3 overflow-x-auto text-sm">
-        <code>{block.text}</code>
-      </pre>
-    );
-  }
-
-  if (block.type === "QUOTE") {
-    return (
-      <blockquote key={key} className="my-3 border-l-4 border-cyan-500/70 bg-cyan-500/10 px-3 py-2 italic whitespace-pre-wrap">
-        {block.text}
-      </blockquote>
-    );
-  }
-
-  if (block.type === "HR") {
-    return <hr key={key} className="my-6 border-slate-700" />;
-  }
-
-  if (block.type === "IMAGE") {
-    const fallback = typeof block.attrs?.sourceUrl === "string" ? (block.attrs.sourceUrl as string) : null;
-    const src = block.image?.url ?? fallback;
-
-    return (
-      <figure key={key} className="my-4">
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt={block.text ?? "image"} className="max-h-[520px] max-w-full rounded-md border border-slate-700" />
-        ) : (
-          <div className="rounded-md border border-dashed border-slate-600 p-3 text-sm text-slate-400">Image unavailable</div>
-        )}
-        <figcaption className="mt-2 text-xs text-slate-400">
-          {block.text || "Image"}
-          {typeof pageOrSlide === "number" ? ` 路 ${pageOrSlide}` : ""}
-        </figcaption>
-      </figure>
-    );
-  }
-
-  return (
-    <p key={key} className="my-2 whitespace-pre-wrap leading-7">
-      {block.text}
-      {typeof pageOrSlide === "number" ? <span className="ml-2 text-xs text-slate-500">[{pageOrSlide}]</span> : null}
-    </p>
-  );
-}
-
 export default function HomePage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<BlockItem[]>([]);
+  const [blocks, setBlocks] = useState<Block[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [loadingBlocks, setLoadingBlocks] = useState(false);
   const [query, setQuery] = useState("");
 
   const [importOpen, setImportOpen] = useState(false);
-  const [importMode, setImportMode] = useState<ImportMode>("single");
+  const [importMode, setApiImportMode] = useState<ApiImportMode>("single");
   const [singleFile, setSingleFile] = useState<File | null>(null);
   const [archiveFile, setArchiveFile] = useState<File | null>(null);
   const [folderFiles, setFolderFiles] = useState<File[]>([]);
@@ -205,7 +82,7 @@ export default function HomePage() {
   async function loadBlocks(documentId: string) {
     setLoadingBlocks(true);
     try {
-      const merged: BlockItem[] = [];
+      const merged: Block[] = [];
       let cursor: number | null = null;
       let safety = 0;
 
@@ -249,7 +126,7 @@ export default function HomePage() {
     blob: Blob;
     fileName: string;
     contentType: string;
-    importKind: ImportMode;
+    importKind: ApiImportMode;
   }) {
     const targetUrl = params.importKind === "single" ? "/api/documents/upload-url" : "/api/imports/upload-url";
     const payload =
@@ -308,7 +185,7 @@ export default function HomePage() {
 
   async function pollBatch(batchId: string) {
     for (let i = 0; i < 300; i += 1) {
-      const result = await fetchJson<{ data: ImportBatchInfo }>(`/api/imports/${batchId}`);
+      const result = await fetchJson<{ data: ImportBatch }>(`/api/imports/${batchId}`);
       const b = result.data;
       setStatusText(`Batch ${b.status} | total ${b.totalCount} success ${b.successCount} failed ${b.failedCount} skipped ${b.skippedCount}`);
 
@@ -524,7 +401,7 @@ export default function HomePage() {
               ) : blocks.length === 0 ? (
                 <div className="text-sm text-slate-500">No renderable blocks.</div>
               ) : (
-                <div className="leading-7">{blocks.map((block) => renderBlock(block))}</div>
+                <div className="leading-7">{blocks.map((block) => <BlockRenderer key={`${block.id}-${block.index}`} block={block} />)}</div>
               )}
             </div>
           ) : (
@@ -563,7 +440,7 @@ export default function HomePage() {
                 className={`rounded-md border px-3 py-2 inline-flex items-center justify-center gap-2 ${
                   importMode === "single" ? "border-cyan-500 bg-cyan-500/10" : "border-slate-700"
                 }`}
-                onClick={() => setImportMode("single")}
+                onClick={() => setApiImportMode("single")}
               >
                 <FileText className="w-4 h-4" /> Single
               </button>
@@ -571,7 +448,7 @@ export default function HomePage() {
                 className={`rounded-md border px-3 py-2 inline-flex items-center justify-center gap-2 ${
                   importMode === "folder" ? "border-cyan-500 bg-cyan-500/10" : "border-slate-700"
                 }`}
-                onClick={() => setImportMode("folder")}
+                onClick={() => setApiImportMode("folder")}
               >
                 <FolderOpen className="w-4 h-4" /> Folder
               </button>
@@ -579,7 +456,7 @@ export default function HomePage() {
                 className={`rounded-md border px-3 py-2 inline-flex items-center justify-center gap-2 ${
                   importMode === "archive" ? "border-cyan-500 bg-cyan-500/10" : "border-slate-700"
                 }`}
-                onClick={() => setImportMode("archive")}
+                onClick={() => setApiImportMode("archive")}
               >
                 <Archive className="w-4 h-4" /> Archive
               </button>

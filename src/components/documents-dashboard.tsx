@@ -7,43 +7,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 
-type DocumentItem = {
-  id: string;
-  title: string;
-  sourceType: "PDF" | "DOCX" | "MD" | "TXT";
-  status: "QUEUED" | "PROCESSING" | "READY" | "FAILED";
-  parserVersion: string;
-  wordCount: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type DocumentsResponse = {
-  data: DocumentItem[];
-  nextCursor: string | null;
-};
-
-type UploadUrlResponse = {
-  uploadUrl: string;
-  objectKey: string;
-  sourceType: DocumentItem["sourceType"];
-  maxBytes: number;
-};
-
-type IngestResponse = {
-  documentId: string;
-  jobId: string;
-  queueJobId: string;
-};
-
-type JobResponse = {
-  data: {
-    id: string;
-    status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
-    errorCode: string | null;
-    errorText: string | null;
-  };
-};
+import type {
+  DocumentItem,
+  DocumentsResponse,
+  IngestResponse,
+  JobStatusResponse,
+  UploadUrlResponse,
+} from "@/lib/types/api";
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
@@ -100,7 +70,7 @@ export function DocumentsDashboard({
 
   const jobQuery = useQuery({
     queryKey: ["job", activeJobId],
-    queryFn: () => fetchJson<JobResponse>(`/api/jobs/${activeJobId}`),
+    queryFn: () => fetchJson<JobStatusResponse>(`/api/jobs/${activeJobId}`),
     enabled: Boolean(activeJobId),
     refetchInterval: (query) => {
       if (!query.state.data) {

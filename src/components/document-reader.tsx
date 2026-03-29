@@ -17,157 +17,22 @@ import { fetchJson } from "@/lib/api-client";
 import { calculateProgressPercent } from "@/lib/progress";
 import { useReaderSettingsStore } from "@/lib/reader-settings-store";
 import { getTheme, THEMES } from "@/lib/themes";
+import { BlockRenderer } from "@/components/block-renderer";
 
-type BlockType = "HEADING" | "PARAGRAPH" | "LIST_ITEM" | "CODE" | "QUOTE" | "IMAGE" | "HR";
-
-type Block = {
-  id: string;
-  index: number;
-  type: BlockType;
-  text: string | null;
-  level: number | null;
-  attrs: Record<string, unknown> | null;
-  image: {
-    id: string;
-    url: string;
-    mimeType: string;
-    width: number | null;
-    height: number | null;
-  } | null;
-};
-
-type OutlineItem = {
-  id: string;
-  index: number;
-  text: string | null;
-  level: number | null;
-};
-
-type SearchResult = {
-  id: string;
-  index: number;
-  type: BlockType;
-  snippet: string;
-};
-
-type DocumentMeta = {
-  id: string;
-  title: string;
-  sourceType: "PDF" | "DOCX" | "MD" | "TXT";
-  status: "QUEUED" | "PROCESSING" | "READY" | "FAILED";
-  parserVersion: string;
-  wordCount: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type BlocksResponse = {
-  data: Block[];
-  nextCursor: number | null;
-};
-
-type ProgressPayload = {
-  data: {
-    lastBlockIndex: number;
-    lastOffset: number;
-    percent: number;
-    updatedAt: string | null;
-  };
-};
+import type {
+  Block,
+  BlocksResponse,
+  DocumentMeta,
+  OutlineItem,
+  ProgressPayload,
+  SearchResult,
+} from "@/lib/types/api";
 
 function blockStyle(fontSize: number, lineHeight: number): CSSProperties {
   return {
     fontSize,
     lineHeight,
   };
-}
-
-function renderBlock(block: Block, style: CSSProperties) {
-  switch (block.type) {
-    case "HEADING": {
-      const level = Math.min(Math.max(block.level ?? 2, 1), 3);
-      if (level === 1) {
-        return (
-          <h1 style={style} className="text-3xl font-semibold tracking-tight">
-            {block.text}
-          </h1>
-        );
-      }
-
-      if (level === 2) {
-        return (
-          <h2 style={style} className="text-2xl font-semibold tracking-tight">
-            {block.text}
-          </h2>
-        );
-      }
-
-      return (
-        <h3 style={style} className="text-xl font-semibold tracking-tight">
-          {block.text}
-        </h3>
-      );
-    }
-    case "PARAGRAPH":
-      return (
-        <p style={style} className="whitespace-pre-wrap leading-[inherit]">
-          {block.text}
-        </p>
-      );
-    case "LIST_ITEM":
-      return (
-        <div style={style} className="flex gap-2">
-          <span aria-hidden>•</span>
-          <p className="whitespace-pre-wrap">{block.text}</p>
-        </div>
-      );
-    case "CODE":
-      return (
-        <pre
-          style={style}
-          className="overflow-x-auto rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm"
-        >
-          <code>{block.text}</code>
-        </pre>
-      );
-    case "QUOTE":
-      return (
-        <blockquote
-          style={style}
-          className="border-l-4 border-cyan-400/70 bg-cyan-500/10 px-4 py-2 italic whitespace-pre-wrap"
-        >
-          {block.text}
-        </blockquote>
-      );
-    case "HR":
-      return <hr className="border-slate-700" />;
-    case "IMAGE": {
-      const directImageUrl =
-        typeof block.attrs?.sourceUrl === "string" ? (block.attrs?.sourceUrl as string) : null;
-      const src = block.image?.url ?? directImageUrl;
-      if (!src) {
-        return (
-          <div className="rounded-lg border border-dashed border-slate-600 px-4 py-3 text-sm text-slate-400">
-            Image placeholder (source unavailable)
-          </div>
-        );
-      }
-
-      return (
-        <figure>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={block.text ?? "Document image"}
-            className="max-h-[520px] w-auto max-w-full rounded-lg border border-slate-700 object-contain"
-          />
-          {block.text ? <figcaption className="mt-2 text-xs text-slate-400">{block.text}</figcaption> : null}
-        </figure>
-      );
-    }
-    default:
-      return null;
-  }
 }
 
 async function loadBlockChunk(documentId: string, cursor: number | null) {
@@ -188,18 +53,30 @@ async function ensureUntilIndex(
   nextCursorRef: MutableRefObject<number | null>,
   updateState: (nextBlocks: Block[], nextCursor: number | null) => void,
 ) {
-  while (nextCursorRef.current !== null) {
-    const maxLoaded = blocksRef.current.length === 0 ? -1 : blocksRef.current[blocksRef.current.length - 1].index;
-    if (maxLoaded >= targetIndex) {
-      break;
-    }
-
-    const chunk = await loadBlockChunk(documentId, nextCursorRef.current);
-    const merged = [...blocksRef.current, ...chunk.data];
-    blocksRef.current = merged;
-    nextCursorRef.current = chunk.nextCursor;
-    updateState(merged, chunk.nextCursor);
+  // Fast path: already loaded enough blocks
+  const maxLoaded = blocksRef.current.length === 0 ? -1 : blocksRef.current[blocksRef.current.length - 1].index;
+  if (maxLoaded >= targetIndex) {
+    return;
   }
+
+  // The API cursor is a block index (WHERE index > cursor), so we can jump
+  // directly to the target area instead of loading every intermediate chunk.
+  const jumpCursor = targetIndex > 0 ? targetIndex - 1 : null;
+  const chunk = await loadBlockChunk(documentId, jumpCursor);
+
+  // Merge: keep existing blocks (typically the first batch), append the new
+  // chunk, deduplicating by block index to avoid overlap when the jump cursor
+  // falls within already-loaded content.
+  const existingMap = new Map(blocksRef.current.map((b) => [b.index, b]));
+  for (const block of chunk.data) {
+    if (!existingMap.has(block.index)) {
+      existingMap.set(block.index, block);
+    }
+  }
+  const merged = Array.from(existingMap.values()).sort((a, b) => a.index - b.index);
+  blocksRef.current = merged;
+  nextCursorRef.current = chunk.nextCursor;
+  updateState(merged, chunk.nextCursor);
 }
 
 export function DocumentReader({
@@ -562,7 +439,7 @@ export function DocumentReader({
                       transform: `translateY(${item.start}px)`,
                     }}
                   >
-                    {renderBlock(block, contentStyle)}
+                    <BlockRenderer block={block} style={contentStyle} />
                   </article>
                 );
               })}
